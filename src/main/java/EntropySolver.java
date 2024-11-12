@@ -16,8 +16,6 @@ import static com.google.common.collect.Maps.newLinkedHashMap;
 import static com.google.common.collect.Sets.newHashSet;
 import static java.lang.Math.log;
 
-// https://gregcameron.com/infinite-wordle/
-
 @Slf4j
 public class EntropySolver {
     private static final BufferedReader READER = new BufferedReader(new InputStreamReader(System.in));
@@ -29,7 +27,16 @@ public class EntropySolver {
 
         // precomputed best at first step
         log.info("Best Word: {}", "soare");
-        filterRemainingWords(solutions, "soare", getOutcome());
+
+        String outcome;
+        try {
+            outcome = getOutcome();
+        } catch(IOException exception) {
+            log.error("Failed to read outcome line, terminating...");
+            return;
+        }
+
+        filterRemainingWords(solutions, "soare", outcome);
         log.info("{} - {}", solutions.size(), solutions.size() < 50 ? solutions : "");
 
         while (solutions.size() > 1) {
@@ -42,24 +49,34 @@ public class EntropySolver {
 
             String bestWord = getBestWord(entropyMap);
             log.info("Best Word: {}", bestWord);
-            filterRemainingWords(solutions, bestWord, getOutcome());
+            try {
+                outcome = getOutcome();
+            } catch(IOException exception) {
+                log.error("Failed to read outcome line, terminating...");
+                return;
+            }
+            filterRemainingWords(solutions, bestWord, outcome);
             log.info("{} - {}", solutions.size(), solutions.size() < 100 ? solutions : "");
         }
         log.info("Solution: {}", solutions.iterator().next());
     }
 
     private static String getBestWord(Map<String, Double> entropyMap) {
-        Map<String, Double> sortedMap = newLinkedHashMap();
-        entropyMap.entrySet()
-                .stream()
-                .sorted((o1, o2) -> o2.getValue()
-                        .compareTo(o1.getValue()))
-                .forEach(entry -> sortedMap.put(entry.getKey(), entry.getValue()));
+        final Set<Map.Entry<String, Double>> wordEntrySet = entropyMap.entrySet();
+        final Map.Entry<String, Double> firstWord = wordEntrySet.stream().iterator().next();
 
-        return sortedMap.entrySet()
-                .iterator()
-                .next()
-                .getKey();
+        String bestWordKey = firstWord.getKey();
+        Double bestWordValue = firstWord.getValue();
+
+        for(String wordKey : entropyMap.keySet()) {
+            double wordWeight = entropyMap.get(wordKey);
+            if (wordWeight > bestWordValue) {
+                bestWordKey = wordKey;
+                bestWordValue = wordWeight;
+            }
+        }
+
+        return bestWordKey;
     }
 
     private static Double getEntropy(Map<Integer, Integer> patterns) {
@@ -106,8 +123,7 @@ public class EntropySolver {
         return true;
     }
 
-    @SneakyThrows
-    private static String getOutcome() {
+    private static String getOutcome() throws IOException {
         return READER.readLine();
     }
 
@@ -120,9 +136,9 @@ public class EntropySolver {
 
     public static Stream<String> fileStream(String fileName) {
         try {
-            return Files.lines(Paths.get("src\\main\\resources", fileName));
+            return Files.lines(Paths.get("src", "main", "resources", fileName));
         } catch (IOException e) {
-            e.printStackTrace();
+            log.error("Failed to open file");
             return newArrayList("").stream();
         }
     }
